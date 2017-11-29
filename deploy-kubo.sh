@@ -14,7 +14,7 @@ state_dir=~/kubo-env/${kubo_env_name}
 
 cd /share/kubo-deployment
 
-echo "====> Prepare local workspace for kubo deployment"
+echo "====> Prepare bastion for kubo deployment"
 
 echo "--> Generate a CFCR configuration template"
 ./bin/generate_env_config "${kubo_envs}" ${kubo_env_name} gcp
@@ -33,7 +33,7 @@ export state_dir=~/kubo-env/${kubo_env_name}
 export kubo_terraform_state=${state_dir}/terraform.tfstate
 
 terraform apply \
-    -var network=${network} \
+    -var network="${prefix}${network}" \
     -var projectid=${project_id} \
     -var region=${region} \
     -var prefix=${prefix} \

@@ -67,7 +67,7 @@ in which case it should prompt you to try again.
 To access your Kubernetes cluster log into the Bastion server and run the following:
 
 ```
-$ ./bin/set_kubeconfig ~/kubo-env/kubo my-cluster
+$ cd /share/kubo-deployment
 $ kubectl get pods --namespace=kube-system
 ```
 

@@ -13,9 +13,20 @@ for app in gcloud terraform parallel; do
   fi
 done
 
-if ! gcloud compute networks list > /dev/null; then
+if ! gcloud config get-value project > /dev/null; then
   echo please authenticate gcloud cli before running this script
 fi
+
+. ${DIR}/kubo-deploy.env
+
+echo "====> Set Environment Variables"
+project_id=$(gcloud config get-value project)
+service_account_email=${prefix}terraform@$(gcloud config get-value project).iam.gserviceaccount.com
+
+cat << EOF >> ./kubo-deploy.env
+export project_id=$(gcloud config get-value project)
+export service_account_email=${prefix}terraform@$(gcloud config get-value project).iam.gserviceaccount.com
+EOF
 
 echo "====> Enable gcloud APIs"
 echo "--> Enable Cloud Resource Manager API"
@@ -25,20 +36,13 @@ echo "--> Enable IAM API"
 gcloud services list | grep iam || \
   gcloud services enable iam.googleapis.com
 
-echo "====> Set Environment Variables"
-cat << EOF >> ./kubo-deploy.env
-export project_id=$(gcloud config get-value project)
-export service_account_email=${prefix}terraform@$(gcloud config get-value project).iam.gserviceaccount.com
-EOF
-. ./kubo-deploy.env
-
 echo "====> Set gcloud region (${region}) and zone (${zone})"
 gcloud config set compute/zone ${zone}
 gcloud config set compute/region ${region}
 
-echo "====> Create VPC ($network)"
-gcloud compute networks describe kubo-network > /dev/null 2>&1 || \
-  gcloud compute networks create ${network} --subnet-mode=custom
+echo "====> Create VPC (${prefix}${network})"
+gcloud compute networks describe "${prefix}${network}" > /dev/null 2>&1 || \
+  gcloud compute networks create "${prefix}${network}" --subnet-mode=custom
 
 echo "====> Create gcloud credentials for Terraform"
 gcloud iam service-accounts create ${prefix}terraform || echo .
@@ -53,7 +57,7 @@ export GOOGLE_CREDENTIALS=$(cat ~/terraform.key.json)
 echo "====> Download kubo deployment if not present"
 if [[ ! -e kubo-deployment ]]; then
 echo "--> Downloading and unpacking kubo deployment"
-  curl https://storage.googleapis.com/kubo-public/kubo-deployment-latest.tgz | tar xzf -
+  curl -sSL ${kubo_deployment} | tar xzf -
 fi
 
 cd kubo-deployment
@@ -67,13 +71,13 @@ if ! gcloud compute instances describe "${prefix}bosh-bastion" > /dev/null 2>&1;
   terraform init
   echo "--> Apply Terraform"
   terraform apply \
-      -var service_account_email=${service_account_email} \
-      -var projectid=${project_id} \
-      -var network=${network} \
-      -var region=${region} \
-      -var prefix=${prefix} \
-      -var zone=${zone} \
-      -var subnet_ip_prefix=${subnet_ip_prefix}
+      -var service_account_email="${service_account_email}" \
+      -var projectid="${project_id}" \
+      -var network="${prefix}${network}" \
+      -var region="${region}" \
+      -var prefix="${prefix}" \
+      -var zone="${zone}" \
+      -var subnet_ip_prefix="${subnet_ip_prefix}"
 fi
 cd ${DIR}
 echo "---> Wait for Bastion to be ready"
@@ -103,5 +107,4 @@ if ! gcloud compute ssh "${prefix}bosh-bastion" --zone "${zone}" \
 
   echo "If the bosh deploy failed you can safely rerun deploy.sh or run:"
   echo "gcloud compute ssh \"${prefix}bosh-bastion\" --zone \"${zone}\" --command=\"./deploy-kubo.sh\""
-
 fi
